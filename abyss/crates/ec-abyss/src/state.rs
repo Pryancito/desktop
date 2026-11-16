@@ -382,6 +382,9 @@ pub struct AbyssState {
     pub timing_wakeup_armed: bool,
     /// `zwlr_virtual_pointer_v1`.
     pub virtual_pointer: crate::protocols::standard::virtual_pointer::VirtualPointerState,
+    /// `zwlr_foreign_toplevel_manager_v1` + `ext_workspace_manager_v1`
+    /// (Eclipse OS fork), behind `toplevel-management.allow`.
+    pub toplevel_management: crate::protocols::standard::toplevel_management::ToplevelManagement,
     /// `ext_background_effect_v1` (BLUR-03).
     pub background_effect: crate::protocols::standard::background_effect::BackgroundEffectGlobals,
     /// `eclipse_glass_v1` (COMP-02 §9).
@@ -575,6 +578,11 @@ impl AbyssState {
             weak_dh.clone(),
             crate::config::ExeAllowlist::new(config.virtual_pointer.allow.clone()),
         );
+        let toplevel_management = crate::protocols::standard::toplevel_management::ToplevelManagement::new(
+            &dh,
+            weak_dh.clone(),
+            crate::config::ExeAllowlist::new(config.toplevel_management.allow.clone()),
+        );
         crate::config::warn_missing_admissions(&[
             ("capture.allow", &capture_allow),
             ("clipboard.data-control-allow", &clipboard_allow),
@@ -752,6 +760,7 @@ impl AbyssState {
             background_effect,
             glass,
             virtual_pointer,
+            toplevel_management,
             xwayland_shell_state,
             xwayland: Default::default(),
             stats: crate::render::stats::FrameStats::new(stats),

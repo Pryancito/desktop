@@ -2179,6 +2179,17 @@ pub const TABLE: &[Key] = &[
         "Executables allowed to bind zwlr_virtual_pointer_manager_v1 and \
        inject pointer input (COMP-06 §2, ADR 0094). Empty denies everyone.",
     ),
+    k(
+        "toplevel-management.allow",
+        Ty::StrList,
+        EmptyList,
+        Policy,
+        Live,
+        "Executables allowed to bind zwlr_foreign_toplevel_manager_v1 and \
+       ext_workspace_manager_v1: list, focus, close, minimize and maximize \
+       windows, and switch workspaces, from a third-party taskbar (Eclipse \
+       OS fork). Empty denies everyone.",
+    ),
 ];
 
 /// Owner of a whole top-level node, when every key under it agrees.
@@ -3255,6 +3266,7 @@ pub fn get(c: &Config, path: &str) -> Option<Value> {
         "capture.allow" => list(&c.capture.allow),
         "input-method.allow" => list(&c.input_method.allow),
         "virtual-pointer.allow" => list(&c.virtual_pointer.allow),
+        "toplevel-management.allow" => list(&c.toplevel_management.allow),
         "capture.redact-app-id" => list(&c.capture.redact_app_id),
         "capture.hide-layer" => V::List(
             c.capture
@@ -3746,6 +3758,7 @@ mod tests {
                 "capture.hide-layer",
                 "input-method.allow",
                 "virtual-pointer.allow",
+                "toplevel-management.allow",
             ]
         );
         let rules: Vec<_> = RULE_ACTIONS

@@ -1167,6 +1167,7 @@ pub const META: &[Meta] = &[
     // input-method / virtual-pointer (ADR 0094)
     m("input-method.allow", "Allow", "privacy", "input method"),
     m("virtual-pointer.allow", "Allow", "privacy", "virtual pointer"),
+    m("toplevel-management.allow", "Allow", "privacy", "window control"),
 ];
 
 /// Where a key that is not in [`META`] lands: one the compositor grew after

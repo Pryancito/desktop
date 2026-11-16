@@ -81,6 +81,12 @@ fn secret(state: &AbyssState, window: &Window) -> bool {
         || (state.policy_table.is_some() && crate::policy::classes::class_of(state, window) == Class::Secret)
 }
 
+/// [`secret`] for the taskbar control globals (`toplevel_management.rs`):
+/// a window this list withholds is withheld there too.
+pub(crate) fn is_secret(state: &AbyssState, window: &Window) -> bool {
+    secret(state, window)
+}
+
 /// Announce a newly mapped window, unless it is `secret`. Called from the
 /// map funnel after the window rules have run, so the XWayland path is
 /// covered by the same code and a `sensitivity` rule is already applied.

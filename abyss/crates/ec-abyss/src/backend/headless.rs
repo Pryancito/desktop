@@ -411,6 +411,8 @@ fn boot(
 
     event_loop
         .run(None, &mut state, |state| {
+            // Taskbar control globals (Eclipse OS fork): diff and send.
+            crate::protocols::standard::toplevel_management::flush(state);
             let _ = state.display_handle.flush_clients();
             crate::protocols::agent::flush(state);
         })

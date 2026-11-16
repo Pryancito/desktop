@@ -386,6 +386,18 @@ pub struct VirtualPointer {
     pub allow: Vec<String>,
 }
 
+/// `toplevel-management { ... }`: Eclipse OS fork addition. Who may bind
+/// `zwlr_foreign_toplevel_manager_v1` (focus, close, minimize, maximize any
+/// window) and `ext_workspace_manager_v1` (switch desktops). Upstream keeps
+/// window control off ambient globals (COMP-06 §2); here it is a named
+/// admission like `virtual-pointer`, so a taskbar the human installed
+/// (lunarbar, Waybar) works and nothing else sees the globals.
+#[derive(Debug, Clone, Default)]
+pub struct ToplevelManagement {
+    /// Executables allowed to bind the two managers. Empty denies everyone.
+    pub allow: Vec<String>,
+}
+
 /// `capture { ... }` (COMP-06 §3, COMP-02 §7). Fail-closed by construction:
 /// every field defaults to "nothing is allowed, everything is redacted that
 /// asks to be".
