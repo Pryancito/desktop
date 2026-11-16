@@ -83,6 +83,10 @@ pub fn apply_loaded(state: &mut crate::state::AbyssState, next: Config) {
         .virtual_pointer
         .allow
         .set(state.config.virtual_pointer.allow.clone());
+    state
+        .toplevel_management
+        .allow
+        .set(state.config.toplevel_management.allow.clone());
     warn_missing_admissions(&[
         ("capture.allow", &state.capture_allow),
         ("clipboard.data-control-allow", &state.clipboard_allow),

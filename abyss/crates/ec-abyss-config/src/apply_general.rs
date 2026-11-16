@@ -282,6 +282,7 @@ impl Config {
                     self.check_exe_entries(n);
                     match block {
                         "input-method" => self.input_method.allow = list,
+                        "toplevel-management" => self.toplevel_management.allow = list,
                         _ => self.virtual_pointer.allow = list,
                     }
                 }

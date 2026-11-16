@@ -1966,6 +1966,8 @@ pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
         // Clients first, so nothing a dispatch round produced waits on a
         // composite; then one composite per dirty output, then the frame
         // callbacks and buffer releases it queued.
+        // Taskbar control globals (Eclipse OS fork): diff and send.
+        crate::protocols::standard::toplevel_management::flush(state);
         let _ = state.display_handle.flush_clients();
         crate::protocols::agent::flush(state);
         flush_renders(state);

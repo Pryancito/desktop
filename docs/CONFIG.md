@@ -583,3 +583,9 @@ Upgrade note (ADR 0094): entries for binaries outside `/usr/bin` must become abs
 | --- | --- | --- | --- | --- |
 | `virtual-pointer.allow` | list of strings | _empty_ | live | Executables allowed to bind zwlr_virtual_pointer_manager_v1 and inject pointer input (COMP-06 §2, ADR 0094). Empty denies everyone. |
 
+### `toplevel-management`
+
+| setting | type | default | reload | what it does |
+| --- | --- | --- | --- | --- |
+| `toplevel-management.allow` | list of strings | _empty_ | live | Executables allowed to bind zwlr_foreign_toplevel_manager_v1 and ext_workspace_manager_v1: list, focus, close, minimize and maximize windows, and switch workspaces, from a third-party taskbar (Eclipse OS fork). Empty denies everyone. |
+

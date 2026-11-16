@@ -45,5 +45,6 @@ pub mod system_bell;
 mod tablet;
 mod text_input;
 pub mod toplevel_icon;
+pub mod toplevel_management;
 pub mod virtual_pointer;
 mod xdg_shell;
