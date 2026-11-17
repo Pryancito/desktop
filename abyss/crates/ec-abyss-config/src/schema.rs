@@ -2051,6 +2051,17 @@ pub const TABLE: &[Key] = &[
        discrete GPU. `misc.render-device`, when set, still pins the primary.",
     ),
     k(
+        "misc.explicit-sync-off",
+        Ty::Bool,
+        Bool(false),
+        Abyss,
+        NeedsRestart,
+        "Do not offer explicit sync (wp_linux_drm_syncobj_v1) even where the \
+       driver supports syncobj eventfds; clients fall back to implicit sync. \
+       For drivers whose syncobj waits are slow enough to throttle clients. \
+       Off by default.",
+    ),
+    k(
         "misc.gpu-warmup",
         Ty::Bool,
         Bool(false),
@@ -3268,6 +3279,7 @@ pub fn get(c: &Config, path: &str) -> Option<Value> {
         "misc.gpu-mode" => V::Str(c.misc.gpu_mode.name().into()),
         "misc.secondary-compositing" => V::Bool(c.misc.secondary_compositing),
         "misc.gpu-warmup" => V::Bool(c.misc.gpu_warmup),
+        "misc.explicit-sync-off" => V::Bool(c.misc.explicit_sync_off),
         "misc.discrete-gpu-apps" => list(&c.misc.discrete_gpu_apps),
         "misc.terminal-command" => s(&c.misc.terminal_command),
         "misc.scripted-input" => V::Bool(c.misc.scripted_input),

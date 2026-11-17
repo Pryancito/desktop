@@ -1121,6 +1121,12 @@ pub const META: &[Meta] = &[
     ),
     m("misc.gpu-mode", "Graphics mode", "system/rendering", "graphics"),
     m(
+        "misc.explicit-sync-off",
+        "Turn off explicit sync",
+        "system/rendering",
+        "graphics",
+    ),
+    m(
         "misc.gpu-warmup",
         "Warm up the GPU at boot",
         "system/rendering",

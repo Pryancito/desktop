@@ -542,6 +542,10 @@ pub struct Misc {
     /// first-use setup is spent on a process that then exits. Default **off**.
     /// Restart-only.
     pub gpu_warmup: bool,
+    /// `explicit-sync-off`: do not offer `wp_linux_drm_syncobj_v1`, so clients
+    /// use implicit sync even where the driver has syncobj eventfds. Default
+    /// **off** (explicit sync is offered). Restart-only.
+    pub explicit_sync_off: bool,
     /// `discrete-gpu-apps`: desktop-entry ids always launched on the
     /// discrete GPU in `hybrid` mode (ADR 0084). Live.
     pub discrete_gpu_apps: Vec<String>,

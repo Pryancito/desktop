@@ -1686,19 +1686,23 @@ pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
     // (drm_syncobj/mod.rs:73): a driver that accepts the deliberately bogus
     // handle panics the compositor at startup with no diagnostic. Treat a panic
     // there as "no explicit sync" instead.
-    let syncobj_supported = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        supports_syncobj_eventfd(&device_fd_for_syncobj)
-    }))
-    .unwrap_or_else(|_| {
-        tracing::warn!("syncobj eventfd probe panicked; disabling explicit sync");
-        false
-    });
+    let explicit_sync_off = state.config.misc.explicit_sync_off;
+    let syncobj_supported = !explicit_sync_off
+        && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            supports_syncobj_eventfd(&device_fd_for_syncobj)
+        }))
+        .unwrap_or_else(|_| {
+            tracing::warn!("syncobj eventfd probe panicked; disabling explicit sync");
+            false
+        });
     if syncobj_supported {
         state.syncobj_state = Some(DrmSyncobjState::new::<AbyssState>(
             &state.display_handle,
             device_fd_for_syncobj.clone(),
         ));
         tracing::info!("explicit sync (wp_linux_drm_syncobj_v1) enabled");
+    } else if explicit_sync_off {
+        tracing::info!("explicit sync off (misc.explicit-sync-off); clients use implicit sync");
     } else {
         tracing::warn!("driver has no syncobj eventfd support; no explicit sync global");
     }
