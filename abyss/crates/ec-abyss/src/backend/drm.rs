@@ -49,7 +49,7 @@ use smithay::{
             element::{texture::TextureRenderElement, Id, Kind, RenderElementStates},
             gles::GlesRenderer,
             utils::DamageBag,
-            Bind, ExportMem, ImportDma, ImportMem, Renderer, Texture, TextureMapping,
+            Bind, ExportMem, ImportDma, ImportEgl, ImportMem, Renderer, Texture, TextureMapping,
         },
         session::{libseat::LibSeatSession, Event as SessionEvent, Session},
         udev::{UdevBackend, UdevEvent},
@@ -1643,7 +1643,7 @@ pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
     } = open_device(&mut session_for_open, &gpu_path)?;
     check_nvidia_modeset(&node)?;
     let our_device = node.dev_id();
-    let renderer = gles_on(&gbm)?;
+    let mut renderer = gles_on(&gbm)?;
 
     // dmabuf is the expected client buffer path (F-04); shm still works.
     // v5 default feedback names the render node and its texture formats; the
@@ -1668,6 +1668,17 @@ pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
         }
     }
     state.dmabuf_state = Some(dmabuf_state);
+    // wl_drm as well, as wlroots and the nested backend advertise it. Mesa's
+    // Wayland EGL finds its GPU from the dmabuf feedback's device number, and
+    // falls back to wl_drm's device path when it cannot resolve that number.
+    // On a kernel whose sysfs does not map a device number back to its node
+    // (Eclipse OS), the feedback alone leaves GL clients on software
+    // rendering; with wl_drm they find the GPU by path.
+    match renderer.bind_wl_display(&state.display_handle) {
+        Ok(()) => tracing::info!("wl_drm advertised (EGL_WL_bind_wayland_display)"),
+        Err(err) => tracing::info!(?err, "no wl_drm: EGL cannot bind the Wayland display"),
+    }
+
     // Explicit sync (COMP-02 §3). Without syncobj eventfd support in the
     // driver there is no way to wait without blocking the loop, so the global
     // is simply absent and clients fall back to implicit sync.
