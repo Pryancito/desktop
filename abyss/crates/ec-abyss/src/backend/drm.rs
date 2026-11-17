@@ -49,7 +49,7 @@ use smithay::{
             element::{texture::TextureRenderElement, Id, Kind, RenderElementStates},
             gles::GlesRenderer,
             utils::DamageBag,
-            Bind, ExportMem, ImportDma, ImportMem, Renderer, Texture, TextureMapping,
+            Bind, ExportMem, ImportDma, ImportEgl, ImportMem, Renderer, Texture, TextureMapping,
         },
         session::{libseat::LibSeatSession, Event as SessionEvent, Session},
         udev::{UdevBackend, UdevEvent},
@@ -1504,6 +1504,7 @@ fn on_vblank(
     meta: Option<&DrmEventMetadata>,
 ) {
     let clock_now = state.clock.now();
+    let mut flip = false;
     if let Some(drm) = state.drm.as_mut() {
         if let Some(i) = drm.index_of(dev_id, crtc) {
             {
@@ -1513,7 +1514,9 @@ fn on_vblank(
                     .current_mode()
                     .map(|m| frame_period(m.refresh))
                     .unwrap_or_else(|| Duration::from_millis(16));
-                match o.compositor.frame_submitted() {
+                let submitted = o.compositor.frame_submitted();
+                flip |= matches!(submitted, Ok(Some(_)));
+                match submitted {
                     // wp_presentation: report the real page-flip
                     // timestamp and sequence the kernel gave us.
                     Ok(Some(Some(mut feedback))) => {
@@ -1565,11 +1568,21 @@ fn on_vblank(
             }
         }
     }
+    if flip {
+        super::gpu_warmup::flipped(state);
+    }
     // No render here: the end of this dispatch round plans the next frame
     // against the deadline (`flush_renders`).
 }
 
 pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
+    // Before the seat is ours: the warm-up copy needs it (gpu_warmup.rs).
+    if config.misc.gpu_warmup {
+        super::gpu_warmup::prime();
+    }
+    let warmup = super::gpu_warmup::is_child();
+    // The copy never hands a session over, whatever it was started with.
+    let session_handoff = session_handoff && !warmup;
     let mut event_loop: EventLoop<'static, AbyssState> =
         EventLoop::try_new().context("calloop event loop")?;
     let display: Display<AbyssState> = Display::new().context("wayland display")?;
@@ -1600,17 +1613,21 @@ pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
     crate::kiosk::init(&mut state);
     crate::input::idle::start(&mut state, &handle);
     // Kiosk: no control socket and no trusted socket (kiosk.rs).
-    if !state.kiosk {
+    // The GPU warm-up copy: nothing client-facing at all (gpu_warmup.rs).
+    if !state.kiosk && !warmup {
         crate::ipc::start(&mut state, &handle);
         crate::trusted_ui::socket::start(&mut state, &handle);
     }
     // COMP-10 §2: every prompt shows the personal secret, once one is set.
     state.trusted_ui.phrase = crate::trusted_ui::phrase::load();
-    crate::config::watch::start(&mut state, &handle);
-    crate::addons::start(&mut state, &handle);
-    if !state.kiosk {
+    if !warmup {
+        crate::config::watch::start(&mut state, &handle);
+        crate::addons::start(&mut state, &handle);
+    }
+    if !state.kiosk && !warmup {
         crate::xwayland::start(&mut state);
     }
+    super::gpu_warmup::arm_limit(&handle);
 
     // --- GPU discovery -----------------------------------------------------
     let udev = UdevBackend::new(&seat_name).context("udev backend")?;
@@ -1626,7 +1643,7 @@ pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
     } = open_device(&mut session_for_open, &gpu_path)?;
     check_nvidia_modeset(&node)?;
     let our_device = node.dev_id();
-    let renderer = gles_on(&gbm)?;
+    let mut renderer = gles_on(&gbm)?;
 
     // dmabuf is the expected client buffer path (F-04); shm still works.
     // v5 default feedback names the render node and its texture formats; the
@@ -1651,6 +1668,16 @@ pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
         }
     }
     state.dmabuf_state = Some(dmabuf_state);
+    // wl_drm as well, as wlroots and the nested backend advertise it. Mesa's
+    // Wayland EGL finds its GPU from the dmabuf feedback's device number, and
+    // falls back to wl_drm's device path when it cannot resolve that number.
+    // On a kernel whose sysfs does not map a device number back to its node
+    // (Eclipse OS), the feedback alone leaves GL clients on software
+    // rendering; with wl_drm they find the GPU by path.
+    match renderer.bind_wl_display(&state.display_handle) {
+        Ok(()) => tracing::info!("wl_drm advertised (EGL_WL_bind_wayland_display)"),
+        Err(err) => tracing::info!(?err, "no wl_drm: EGL cannot bind the Wayland display"),
+    }
 
     // Explicit sync (COMP-02 §3). Without syncobj eventfd support in the
     // driver there is no way to wait without blocking the loop, so the global
@@ -1953,13 +1980,15 @@ pub fn run(config: Config, stats: bool, session_handoff: bool) -> Result<()> {
         )
         .map_err(|err| anyhow!("inserting display source: {err}"))?;
 
-    // SAFETY: single-threaded; nothing else reads the environment concurrently.
-    unsafe { std::env::set_var("WAYLAND_DISPLAY", &state.socket_name) };
-    tracing::info!(socket = %state.socket_name, "abyss ready on DRM");
-    if session_handoff {
-        crate::session::import(state.config.mode);
+    if !warmup {
+        // SAFETY: single-threaded; nothing else reads the environment concurrently.
+        unsafe { std::env::set_var("WAYLAND_DISPLAY", &state.socket_name) };
+        tracing::info!(socket = %state.socket_name, "abyss ready on DRM");
+        if session_handoff {
+            crate::session::import(state.config.mode);
+        }
+        crate::kiosk::launch(&mut state, &handle)?;
     }
-    crate::kiosk::launch(&mut state, &handle)?;
 
     render(&mut state);
     event_loop.run(None, &mut state, |state| {

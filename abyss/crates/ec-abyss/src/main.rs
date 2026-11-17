@@ -102,6 +102,9 @@ fn parse_args() -> Result<Args> {
             },
             #[cfg(feature = "drm")]
             "--list-gpus" => list_gpus = true,
+            // Internal: the once-per-boot GPU warm-up copy (backend/gpu_warmup.rs).
+            #[cfg(feature = "drm")]
+            backend::gpu_warmup::FLAG => backend::gpu_warmup::set_child(),
             #[cfg(feature = "headless")]
             "--size" => match args.next().as_deref().and_then(parse_size) {
                 Some(v) => size = v,
