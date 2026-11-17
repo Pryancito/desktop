@@ -2051,6 +2051,17 @@ pub const TABLE: &[Key] = &[
        discrete GPU. `misc.render-device`, when set, still pins the primary.",
     ),
     k(
+        "misc.gpu-warmup",
+        Ty::Bool,
+        Bool(false),
+        Abyss,
+        NeedsRestart,
+        "Before the first DRM start of a boot, render one frame on the primary \
+       GPU in a short-lived child process and only then bring the compositor \
+       up. For drivers whose first GPU client of a boot comes up broken (the \
+       panel shows garbage until the compositor is restarted). Off by default.",
+    ),
+    k(
         "misc.secondary-compositing",
         Ty::Bool,
         Bool(false),
@@ -3256,6 +3267,7 @@ pub fn get(c: &Config, path: &str) -> Option<Value> {
         "misc.render-device" => s(&c.misc.render_device),
         "misc.gpu-mode" => V::Str(c.misc.gpu_mode.name().into()),
         "misc.secondary-compositing" => V::Bool(c.misc.secondary_compositing),
+        "misc.gpu-warmup" => V::Bool(c.misc.gpu_warmup),
         "misc.discrete-gpu-apps" => list(&c.misc.discrete_gpu_apps),
         "misc.terminal-command" => s(&c.misc.terminal_command),
         "misc.scripted-input" => V::Bool(c.misc.scripted_input),

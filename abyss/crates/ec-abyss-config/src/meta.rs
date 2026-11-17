@@ -1120,6 +1120,12 @@ pub const META: &[Meta] = &[
         "rendering",
     ),
     m("misc.gpu-mode", "Graphics mode", "system/rendering", "graphics"),
+    m(
+        "misc.gpu-warmup",
+        "Warm up the GPU at boot",
+        "system/rendering",
+        "graphics",
+    ),
     Meta {
         pane_label: None,
         caption: Some(SECONDARY_CAPTION),

@@ -537,6 +537,11 @@ pub struct Misc {
     /// GPU natively on that GPU. Default **off**: the primary renders and the
     /// secondary's scanout buffer receives a copy. Restart-only.
     pub secondary_compositing: bool,
+    /// `gpu-warmup`: before the first DRM start of a boot, render one frame
+    /// on the primary GPU in a short-lived child process, so the driver's
+    /// first-use setup is spent on a process that then exits. Default **off**.
+    /// Restart-only.
+    pub gpu_warmup: bool,
     /// `discrete-gpu-apps`: desktop-entry ids always launched on the
     /// discrete GPU in `hybrid` mode (ADR 0084). Live.
     pub discrete_gpu_apps: Vec<String>,
