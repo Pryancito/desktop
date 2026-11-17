@@ -576,6 +576,10 @@ impl Config {
                     Some(m) => self.misc.gpu_mode = m,
                     None => self.reject(n, "gpu-mode must be \"integrated\", \"hybrid\" or \"dedicated\""),
                 },
+                "explicit-sync-off" => match arg(n).and_then(KdlValue::as_bool) {
+                    Some(b) => self.misc.explicit_sync_off = b,
+                    None => self.reject(n, "explicit-sync-off needs a boolean (#true or #false)"),
+                },
                 "gpu-warmup" => match arg(n).and_then(KdlValue::as_bool) {
                     Some(b) => self.misc.gpu_warmup = b,
                     None => self.reject(n, "gpu-warmup needs a boolean (#true or #false)"),
