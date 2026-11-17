@@ -2051,6 +2051,16 @@ pub const TABLE: &[Key] = &[
        discrete GPU. `misc.render-device`, when set, still pins the primary.",
     ),
     k(
+        "misc.frame-pacing-off",
+        Ty::Bool,
+        Bool(false),
+        Abyss,
+        NeedsRestart,
+        "Do not offer wp_fifo_v1 or wp_commit_timing_v1; clients pace their \
+       frames as they would under a compositor without them. For drivers \
+       whose clients are throttled by those protocols. Off by default.",
+    ),
+    k(
         "misc.explicit-sync-off",
         Ty::Bool,
         Bool(false),
@@ -3280,6 +3290,7 @@ pub fn get(c: &Config, path: &str) -> Option<Value> {
         "misc.secondary-compositing" => V::Bool(c.misc.secondary_compositing),
         "misc.gpu-warmup" => V::Bool(c.misc.gpu_warmup),
         "misc.explicit-sync-off" => V::Bool(c.misc.explicit_sync_off),
+        "misc.frame-pacing-off" => V::Bool(c.misc.frame_pacing_off),
         "misc.discrete-gpu-apps" => list(&c.misc.discrete_gpu_apps),
         "misc.terminal-command" => s(&c.misc.terminal_command),
         "misc.scripted-input" => V::Bool(c.misc.scripted_input),
