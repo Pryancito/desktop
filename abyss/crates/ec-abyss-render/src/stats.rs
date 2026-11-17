@@ -25,6 +25,14 @@ pub struct FrameStats {
     next: usize,
     len: usize,
     frames: u64,
+    /// Queue-to-flip latency and flip-to-flip interval, per flip (DRM only).
+    flip_us: Box<[u32; CAPACITY]>,
+    interval_us: Box<[u32; CAPACITY]>,
+    flip_next: usize,
+    flip_len: usize,
+    interval_next: usize,
+    interval_len: usize,
+    flips: u64,
     last_report: Instant,
 }
 
@@ -37,6 +45,13 @@ impl FrameStats {
             next: 0,
             len: 0,
             frames: 0,
+            flip_us: Box::new([0; CAPACITY]),
+            interval_us: Box::new([0; CAPACITY]),
+            flip_next: 0,
+            flip_len: 0,
+            interval_next: 0,
+            interval_len: 0,
+            flips: 0,
             last_report: Instant::now(),
         }
     }
@@ -48,6 +63,23 @@ impl FrameStats {
         self.next = (self.next + 1) % CAPACITY;
         self.len = (self.len + 1).min(CAPACITY);
         self.frames += 1;
+    }
+
+    /// Record one completed page flip: how long after `queue_frame` the kernel
+    /// reported it, and the gap since the previous flip on that output.
+    /// Cheap and allocation-free.
+    pub fn record_flip(&mut self, latency: Duration, interval: Option<Duration>) {
+        let us = |d: Duration| d.as_micros().min(u32::MAX as u128) as u32;
+        self.flip_us[self.flip_next] = us(latency);
+        // The first flip of an output has no interval.
+        if let Some(i) = interval {
+            self.interval_us[self.interval_next] = us(i);
+            self.interval_next = (self.interval_next + 1) % CAPACITY;
+            self.interval_len = (self.interval_len + 1).min(CAPACITY);
+        }
+        self.flip_next = (self.flip_next + 1) % CAPACITY;
+        self.flip_len = (self.flip_len + 1).min(CAPACITY);
+        self.flips += 1;
     }
 
     /// Emit a summary if the reporting interval has elapsed. Called once per
@@ -89,9 +121,18 @@ impl FrameStats {
         let mut submit: Vec<u32> = self.submit_us[..self.len].to_vec();
         render.sort_unstable();
         submit.sort_unstable();
+        let mut flip: Vec<u32> = self.flip_us[..self.flip_len].to_vec();
+        let mut interval: Vec<u32> = self.interval_us[..self.interval_len].to_vec();
+        flip.sort_unstable();
+        interval.sort_unstable();
         Snapshot {
             samples: self.len,
             frames: self.frames,
+            flips: self.flips,
+            flip_p50_us: pct(&flip, 50),
+            flip_p99_us: pct(&flip, 99),
+            interval_p50_us: pct(&interval, 50),
+            interval_p99_us: pct(&interval, 99),
             render_p50_us: pct(&render, 50),
             render_p99_us: pct(&render, 99),
             submit_p50_us: pct(&submit, 50),
@@ -111,6 +152,14 @@ pub struct Snapshot {
     pub render_p99_us: u32,
     pub submit_p50_us: u32,
     pub submit_p99_us: u32,
+    /// Page flips completed since start (DRM backend only).
+    pub flips: u64,
+    /// `queue_frame` to the flip's completion event.
+    pub flip_p50_us: u32,
+    pub flip_p99_us: u32,
+    /// Between consecutive flips on one output.
+    pub interval_p50_us: u32,
+    pub interval_p99_us: u32,
 }
 
 /// Nearest-rank percentile over an already sorted slice.
@@ -133,6 +182,18 @@ mod tests {
         assert_eq!(pct(&v, 99), 99);
         assert_eq!(pct(&[], 50), 0);
         assert_eq!(pct(&[7], 99), 7);
+    }
+
+    #[test]
+    fn flips_report_latency_and_interval() {
+        let mut s = FrameStats::new(false);
+        s.record(Duration::from_micros(1), Duration::from_micros(1));
+        s.record_flip(Duration::from_micros(50_000), None);
+        s.record_flip(Duration::from_micros(48_000), Some(Duration::from_micros(50_000)));
+        let snap = s.snapshot();
+        assert_eq!(snap.flips, 2);
+        assert_eq!(snap.flip_p99_us, 50_000);
+        assert_eq!(snap.interval_p50_us, 50_000);
     }
 
     #[test]
