@@ -1121,6 +1121,12 @@ pub const META: &[Meta] = &[
     ),
     m("misc.gpu-mode", "Graphics mode", "system/rendering", "graphics"),
     m(
+        "misc.frame-pacing-off",
+        "Turn off frame pacing protocols",
+        "system/rendering",
+        "graphics",
+    ),
+    m(
         "misc.explicit-sync-off",
         "Turn off explicit sync",
         "system/rendering",

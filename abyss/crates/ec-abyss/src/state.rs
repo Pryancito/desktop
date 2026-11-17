@@ -561,6 +561,13 @@ impl AbyssState {
         toplevel_icon_manager.add_icon_size(crate::protocols::standard::toplevel_icon::ICON_SIZE);
         let fifo_state = FifoManagerState::new::<Self>(&dh);
         let commit_timing_state = CommitTimingManagerState::new::<Self>(&dh);
+        // `misc.frame-pacing-off`: neither global is advertised. Removed
+        // right after creation, before any client can have bound them.
+        if config.misc.frame_pacing_off {
+            dh.remove_global::<Self>(fifo_state.global());
+            dh.remove_global::<Self>(commit_timing_state.global());
+            tracing::info!("frame pacing off (misc.frame-pacing-off): no wp_fifo_v1, no wp_commit_timing_v1");
+        }
         let xwayland_shell_state = XWaylandShellState::new::<Self>(&dh);
         let output_power = crate::protocols::standard::output_power::OutputPowerState::new(&dh);
         let background_effect = crate::protocols::standard::background_effect::BackgroundEffectGlobals::new(

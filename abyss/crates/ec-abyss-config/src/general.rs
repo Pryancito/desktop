@@ -546,6 +546,10 @@ pub struct Misc {
     /// use implicit sync even where the driver has syncobj eventfds. Default
     /// **off** (explicit sync is offered). Restart-only.
     pub explicit_sync_off: bool,
+    /// `frame-pacing-off`: do not offer `wp_fifo_v1` or
+    /// `wp_commit_timing_v1`, so clients pace themselves as they would under
+    /// a compositor without them. Default **off**. Restart-only.
+    pub frame_pacing_off: bool,
     /// `discrete-gpu-apps`: desktop-entry ids always launched on the
     /// discrete GPU in `hybrid` mode (ADR 0084). Live.
     pub discrete_gpu_apps: Vec<String>,
