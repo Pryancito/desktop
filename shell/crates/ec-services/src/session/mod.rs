@@ -16,6 +16,10 @@
 //! It also listens, for `ec-lock-trigger` (ADR 0095): logind's `Lock` for the
 //! display session and `PrepareForSleep` are what start the locker. Deciding
 //! what each one means is [`respond`], a pure function; the bin does the I/O.
+//!
+//! On Eclipse OS there is no logind: when `/etc/os-release` says `ID=eclipse`
+//! and no `org.freedesktop.login1` is on the system bus, the same five actions
+//! go to `eclipse-init` and the compositor instead ([`eclipse`]).
 
 use std::os::fd::OwnedFd;
 use std::time::Duration;
@@ -23,6 +27,8 @@ use std::time::Duration;
 use zbus::blocking::{Connection, MessageIterator, Proxy};
 use zbus::zvariant::OwnedObjectPath;
 use zbus::MatchRule;
+
+mod eclipse;
 
 const LOGIND: &str = "org.freedesktop.login1";
 const MANAGER_PATH: &str = "/org/freedesktop/login1";
@@ -176,26 +182,50 @@ impl Availability {
     }
 }
 
-/// A handle on logind. Cheap to clone; the connection is shared.
+/// A handle on logind, or on Eclipse OS's init where there is no logind.
+/// Cheap to clone; the connection is shared.
 #[derive(Debug, Clone)]
 pub struct Session {
-    connection: Connection,
+    backend: Backend,
+}
+
+#[derive(Debug, Clone)]
+enum Backend {
+    Logind(Connection),
+    /// Eclipse OS: `eclipse-init` and the compositor ([`eclipse`]).
+    EclipseInit,
 }
 
 impl Session {
-    /// Fails only if the system bus is unreachable — a container without one,
-    /// or a machine not running systemd.
+    /// Fails only if neither logind nor Eclipse OS's init can be reached: a
+    /// container without a system bus, or a machine not running systemd.
     pub fn connect() -> zbus::Result<Self> {
-        Ok(Self {
-            connection: Connection::system()?,
+        let system = Connection::system();
+        if let Ok(connection) = &system {
+            if has_logind(connection) || !eclipse::is_eclipse_os() {
+                return Ok(Self {
+                    backend: Backend::Logind(connection.clone()),
+                });
+            }
+        }
+        if eclipse::is_eclipse_os() {
+            return Ok(Self {
+                backend: Backend::EclipseInit,
+            });
+        }
+        system.map(|connection| Self {
+            backend: Backend::Logind(connection),
         })
     }
 
     /// Whether logind will do this, asked before it is offered.
     ///
-    /// Lock and log out are always available: they act on the session this
-    /// process is already in, and logind does not gate them.
+    /// Lock and log out are always available under logind: they act on the
+    /// session this process is already in, and logind does not gate them.
     pub fn availability(&self, action: Action) -> Availability {
+        let Backend::Logind(_) = &self.backend else {
+            return eclipse::availability(action);
+        };
         let Some(query) = action.query() else {
             return Availability::Yes;
         };
@@ -217,6 +247,9 @@ impl Session {
     /// Returns logind's own error unchanged — a refusal here is a policy
     /// decision and the caller should say so, not retry.
     pub fn perform(&self, action: Action, interactive: bool) -> zbus::Result<()> {
+        if let Backend::EclipseInit = self.backend {
+            return eclipse::perform(action).map_err(zbus::Error::Failure);
+        }
         if action.on_manager() {
             self.manager()?.call::<_, _, ()>(action.method(), &(interactive))
         } else {
@@ -227,7 +260,7 @@ impl Session {
     /// The object path of this user's graphical session: the one logind
     /// locks with `loginctl lock-session` from inside it.
     pub fn display_session(&self) -> zbus::Result<OwnedObjectPath> {
-        let user = Proxy::new(&self.connection, LOGIND, USER_SELF, USER)?;
+        let user = Proxy::new(self.connection()?, LOGIND, USER_SELF, USER)?;
         let (id, path): (String, OwnedObjectPath) = user.get_property("Display")?;
         if id.is_empty() {
             return Err(zbus::Error::Failure("this user has no display session".into()));
@@ -263,18 +296,36 @@ impl Session {
             .member("PrepareForSleep")?
             .build();
         Ok([
-            MessageIterator::for_match_rule(lock, &self.connection, Some(16))?,
-            MessageIterator::for_match_rule(sleep, &self.connection, Some(16))?,
+            MessageIterator::for_match_rule(lock, self.connection()?, Some(16))?,
+            MessageIterator::for_match_rule(sleep, self.connection()?, Some(16))?,
         ])
     }
 
+    /// The system bus, where logind lives. Eclipse OS's init has no lock or
+    /// sleep signals to subscribe to, so those calls fail there.
+    fn connection(&self) -> zbus::Result<&Connection> {
+        match &self.backend {
+            Backend::Logind(connection) => Ok(connection),
+            Backend::EclipseInit => Err(zbus::Error::Failure(
+                "no logind on Eclipse OS: lock and sleep signals are not available".into(),
+            )),
+        }
+    }
+
     fn manager(&self) -> zbus::Result<Proxy<'_>> {
-        Proxy::new(&self.connection, LOGIND, MANAGER_PATH, MANAGER)
+        Proxy::new(self.connection()?, LOGIND, MANAGER_PATH, MANAGER)
     }
 
     fn session(&self) -> zbus::Result<Proxy<'_>> {
-        Proxy::new(&self.connection, LOGIND, SESSION_PATH, SESSION)
+        Proxy::new(self.connection()?, LOGIND, SESSION_PATH, SESSION)
     }
+}
+
+/// Whether `org.freedesktop.login1` has an owner on this bus.
+fn has_logind(connection: &Connection) -> bool {
+    zbus::blocking::fdo::DBusProxy::new(connection)
+        .and_then(|bus| Ok(bus.name_has_owner(LOGIND.try_into()?)?))
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
